@@ -21,8 +21,7 @@ extern "C" {
  *********************/
 
 #ifndef TXW82X_DMA2D_DEBUG
-    /* 临时打开：统计 DMA2D 命中率，测试完成后改回 0 */
-    #define TXW82X_DMA2D_DEBUG  1
+    #define TXW82X_DMA2D_DEBUG  0
 #endif
 
 /**********************

@@ -1035,3 +1035,49 @@ VBUS 检测通道初始化失败时按场景1兜底（`g_vbus_adc_failed`，fail
 - `.git` 属主是沙箱账户，已把本仓库加入 `safe.directory`，普通命令行下 `git` 可直接使用。
 
 **远端**：`origin` = `https://github.com/23110wei/82x-v2.7.1_ai_album.git`（HTTPS + Windows 凭据管理器；`~/.ssh/id_ed25519` 尚未登记到 GitHub）。本地 `main` 已与 `origin/main` 对齐（`2c4a4de`）。
+
+## 五十二、DMA2D 调试统计开关关闭 + 开关实测对比（2026-09-18）
+
+**背景**：明明 DMA2D 对图片绘制是加速的，相册翻页却没变快，于是把 `TXW82X_DMA2D_DEBUG`
+在 1 / 0 之间来回编译上板，用同一条路径的日志做对照。
+
+**实测**（同一块板、相册翻页，`[ALBUM_CACHE] hit` 之后的整帧耗时）：
+
+| 项 | DEBUG 0（关，16:11 日志） | DEBUG 1（开，16:22 日志） |
+| --- | --- | --- |
+| 翻页帧 | 134~143 ms | 170~177 ms |
+| ALBUM→GALLERY 首帧 | 311 ms | 327 ms |
+| `create` / `show` 回调 | 80~82 / 5~6 ms | 同 |
+| `rgb=`（YUV420→RGB565） | 269~277 ms | 269~277 ms |
+| 硬件命中像素占比 | — | 93.7~96.5% |
+| `mix` 调用 | — | 恒为 0 |
+| 软件回退 | — | 10721 次，均宽 132 px |
+| psram 最小空闲 | 58.7 KB | 40.4 KB |
+| `malloc fail` 次数 | 12 | 14 |
+| 产物体积 | 1,853,456 B | 1,856,528 B |
+
+开着反而慢约 24%（两个耗时区间不重叠）。不是用错了，而是**这条链路上 DMA2D 能接的活
+本来就不是瓶颈**：
+
+- 耗时主体是 `rgb=` 的 YUV420→RGB565（269~277 ms）。DMA2D 的 HAL 只认像素格式
+  （`sdk/include/hal/dma2d.h:8-21`），硬件模式只有 MEMCPY / CONVERT / MIXTURE / MEMSET /
+  MIXTURE_BG / MIXTURE_FG（`sdk/include/dev/dma2d/hg_dma2d_v0.h:26-33`），色度上采样不在其中
+  （SDK 自己也只把 DMA2D 当整块搬运/缩放用，见 `sdk/lib/scale/scale_dev_v3.c:553`）。
+- 它能接的那部分：门控在 `lv_gpu_txw82x_dma2d.c:226`（无 mask、`LV_BLEND_MODE_NORMAL`、
+  面积大于 100 px、`render_with_alpha == 0`），实际命中的都是小块（均宽 132 px）；而每个 op
+  都要忙等完成（`dma2d_wait_complete`，同文件 `:115`）并做整段 cache 维护
+  （`:75` / `:88` / `:101`），小块上这些固定开销把收益吃光。
+- 副作用：开着时 psram 水位多占约 18 KB，翻页 `malloc fail` 从 12 升到 14，会加剧五十节那条
+  OSD / JPEG 的同堆竞争。
+
+**处置**：保持 DMA2D 开启（静止画面与大片绘制仍是净收益），只把
+`sdk/lib/lvgl/src/draw/txw82x_dma2d/lv_gpu_txw82x_dma2d.h` 的 `TXW82X_DMA2D_DEBUG` 由 1 改回 0，
+关掉命中率统计与 `[DMA2D] init OK / ctx_init OK` 等输出。统计脚手架（计数器、
+`dma2d_stats_report`、`print_stats`）暂留，作者原注释写着（测完删除）。
+
+**订正五十节**：该节（处置）里写的 OSD 输出缓冲常驻复用（`tx_buf / tx_buf_size / tx_buf_busy`、
+`osd_encode_tx_buffer()`、`MSI_CMD_FREE_FB` 分支）**并不存在于代码中**：
+`sdk/app/app_lcd/osd_encode_msi.c` 相对 `HEAD` 无任何改动，仍是第 79 行逐帧 `STREAM_MALLOC`、
+第 222 行 `STREAM_FREE`。那次写入没有落到文件里，翻页丢帧问题仍未修。
+
+**验证**：改动只有一行宏定义；两个日志文件（16:11 关 / 16:22 开）是上表数据的来源。
