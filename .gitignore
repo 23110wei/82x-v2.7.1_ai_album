@@ -9,6 +9,7 @@
 
 # --- Tooling / editor index caches (regenerable, very large) ---
 /.codegraph/
+/.gitnexus/
 /.zcode/
 
 # --- CDK build output ---
