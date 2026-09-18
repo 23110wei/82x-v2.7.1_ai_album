@@ -15,6 +15,9 @@
 #define AI_ALBUM_UI_COLOR_ORANGE   0xE48843U
 #define AI_ALBUM_UI_COLOR_RED      0xD95F5FU
 
+/* 在已有screen上挂共享标题栏(标题+音量/网络/时间/电量)。首页复用display的
+ * 默认screen,不走 prepare() 的建屏路径,故单独暴露这一步 */
+void ai_album_ui_common_attach_topbar(lv_obj_t *screen, const char *title);
 lv_obj_t *ai_album_ui_common_prepare(lv_display_t *display,
                                      const char *title,
                                      uint32_t background);

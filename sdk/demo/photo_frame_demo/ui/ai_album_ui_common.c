@@ -2,6 +2,8 @@
 
 #include "audio/ai_album_volume.h"
 #include "basic_include.h"
+#include "hardware/battery_detect.h"
+#include "hardware/power_ctrl.h"
 #include "network/wifi_provision.h"
 #include "system/ai_album_time_service.h"
 #include "ui/ai_album_i18n.h"
@@ -42,6 +44,31 @@ static void common_set_status_if_changed(lv_obj_t *label, const char *source)
     }
 }
 
+/* 电量:固定长度轨道(满电宽度),真实电量只体现为内部填充;
+ * ⚡在轨道左侧,仅外部供电(VBUS)时出现。只在值真的变了才写,
+ * 否则秒级定时器会把标题栏整块标脏 */
+static void common_update_topbar_battery(lv_obj_t *bolt, lv_obj_t *bar,
+                                         uint8_t external_power)
+{
+    uint8_t percent = battery_detect_display_percent(external_power);
+    lv_color_t indicator =
+        lv_color_hex(external_power ? AI_ALBUM_UI_COLOR_GREEN : 0xFFFFFFU);
+    uint8_t hidden = (uint8_t)lv_obj_has_flag(bolt, LV_OBJ_FLAG_HIDDEN);
+
+    if (lv_bar_get_value(bar) != (int32_t)percent) {
+        lv_bar_set_value(bar, percent, LV_ANIM_OFF);
+    }
+    if (lv_obj_get_style_bg_color(bar, LV_PART_INDICATOR).full !=
+        indicator.full) {
+        lv_obj_set_style_bg_color(bar, indicator, LV_PART_INDICATOR);
+    }
+    if (external_power && hidden) {
+        lv_obj_clear_flag(bolt, LV_OBJ_FLAG_HIDDEN);
+    } else if (!external_power && !hidden) {
+        lv_obj_add_flag(bolt, LV_OBJ_FLAG_HIDDEN);
+    }
+}
+
 static void common_update_topbar_status(lv_obj_t *status)
 {
     char volume[20];
@@ -51,14 +78,18 @@ static void common_update_topbar_status(lv_obj_t *status)
     lv_obj_t *volume_label;
     lv_obj_t *network_label;
     lv_obj_t *time_label;
+    lv_obj_t *battery_bolt;
+    lv_obj_t *battery_bar;
 
     if (status == NULL || !lv_obj_is_valid(status) ||
-        lv_obj_get_child_count(status) < 3U) {
+        lv_obj_get_child_count(status) < 5U) {
         return;
     }
     volume_label = lv_obj_get_child(status, 0);
     network_label = lv_obj_get_child(status, 1);
     time_label = lv_obj_get_child(status, 2);
+    battery_bolt = lv_obj_get_child(status, 3);
+    battery_bar = lv_obj_get_child(status, 4);
     ai_album_ui_common_format_volume(volume, sizeof(volume));
     wifi_provision_get_status(&wifi);
     ai_album_time_service_update();
@@ -69,6 +100,8 @@ static void common_update_topbar_status(lv_obj_t *status)
         network_label,
         wifi.state == WIFI_PROVISION_STATE_ONLINE ? "ONLINE" : "OFFLINE");
     common_set_raw_if_changed(time_label, clock);
+    common_update_topbar_battery(battery_bolt, battery_bar,
+                                 power_ctrl_charging());
 }
 
 static void common_topbar_timer_cb(lv_timer_t *timer)
@@ -166,12 +199,14 @@ static lv_obj_t *common_raw_label(lv_obj_t *parent, const char *text,
     return label;
 }
 
-static void common_create_topbar(lv_obj_t *screen, const char *title)
+/* 挂共享标题栏。首页直接复用display的默认screen(不走prepare),故单独暴露 */
+void ai_album_ui_common_attach_topbar(lv_obj_t *screen, const char *title)
 {
     lv_obj_t *bar = ai_album_ui_common_panel(
         screen, AI_ALBUM_UI_COLOR_TOPBAR, 0);
     lv_obj_t *status;
     lv_obj_t *label;
+    lv_obj_t *battery;
 
     lv_obj_set_pos(bar, 0, 0);
     lv_obj_set_size(bar, 1024, 48);
@@ -186,24 +221,44 @@ static void common_create_topbar(lv_obj_t *screen, const char *title)
     lv_obj_set_size(status, 282, 48);
     label = common_raw_label(
         status, "", &lv_font_montserrat_14, 0x8DE4C8U);
-    lv_obj_set_width(label, 90);
+    lv_obj_set_width(label, 62);
     lv_obj_set_style_text_align(label, LV_TEXT_ALIGN_RIGHT, LV_PART_MAIN);
     lv_obj_align(label, LV_ALIGN_LEFT_MID, 0, 0);
     label = ai_album_ui_common_label(
         status, "", &lv_font_montserrat_14, 0x8DE4C8U);
-    lv_obj_set_width(label, 100);
+    lv_obj_set_width(label, 74);
     lv_obj_set_style_text_align(label, LV_TEXT_ALIGN_RIGHT, LV_PART_MAIN);
-    lv_obj_align(label, LV_ALIGN_LEFT_MID, 100, 0);
+    lv_obj_align(label, LV_ALIGN_LEFT_MID, 70, 0);
     label = common_raw_label(
         status, "", &lv_font_montserrat_14, 0x8DE4C8U);
-    lv_obj_set_width(label, 72);
+    lv_obj_set_width(label, 46);
     lv_obj_set_style_text_align(label, LV_TEXT_ALIGN_RIGHT, LV_PART_MAIN);
-    lv_obj_align(label, LV_ALIGN_LEFT_MID, 210, 0);
+    lv_obj_align(label, LV_ALIGN_LEFT_MID, 152, 0);
+    /* 电量占最右:轨道长度固定(满电),外部供电时左侧亮点⚡ */
+    label = common_raw_label(
+        status, LV_SYMBOL_CHARGE, &lv_font_montserrat_14, 0x27B58BU);
+    lv_obj_set_width(label, 14);
+    lv_obj_set_style_text_align(label, LV_TEXT_ALIGN_RIGHT, LV_PART_MAIN);
+    lv_obj_align(label, LV_ALIGN_LEFT_MID, 206, 0);
+    lv_obj_add_flag(label, LV_OBJ_FLAG_HIDDEN);
+    battery = lv_bar_create(status);
+    lv_obj_set_size(battery, 56, 16);
+    lv_obj_align(battery, LV_ALIGN_LEFT_MID, 226, 0);
+    lv_bar_set_range(battery, 0, 100);
+    lv_obj_set_style_bg_color(battery, lv_color_hex(0x2F4A44U), LV_PART_MAIN);
+    lv_obj_set_style_bg_opa(battery, LV_OPA_COVER, LV_PART_MAIN);
+    lv_obj_set_style_radius(battery, 4, LV_PART_MAIN);
+    lv_obj_set_style_radius(battery, 4, LV_PART_INDICATOR);
     common_update_topbar_status(status);
     lv_obj_add_event_cb(screen, common_topbar_screen_event,
                         LV_EVENT_SCREEN_LOADED, status);
     lv_obj_add_event_cb(screen, common_topbar_screen_event,
                         LV_EVENT_SCREEN_UNLOADED, status);
+    /* 首页挂在display的默认screen上,建栏时它已经是活动屏,不会再收到
+     * SCREEN_LOADED;不在这里认领,秒级刷新就一直找不到刷新目标 */
+    if (lv_display_get_screen_active(lv_obj_get_display(screen)) == screen) {
+        g_active_topbar_status = status;
+    }
     if (g_topbar_timer == NULL) {
         g_topbar_timer = lv_timer_create(common_topbar_timer_cb, 1000U, NULL);
     }
@@ -227,7 +282,7 @@ lv_obj_t *ai_album_ui_common_prepare(lv_display_t *display,
     lv_obj_set_style_bg_color(screen, lv_color_hex(background), LV_PART_MAIN);
     lv_obj_set_style_bg_opa(screen, LV_OPA_COVER, LV_PART_MAIN);
     lv_obj_set_style_pad_all(screen, 0, LV_PART_MAIN);
-    common_create_topbar(screen, title);
+    ai_album_ui_common_attach_topbar(screen, title);
     return screen;
 }
 

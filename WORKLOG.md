@@ -1081,3 +1081,46 @@ VBUS 检测通道初始化失败时按场景1兜底（`g_vbus_adc_failed`，fail
 第 222 行 `STREAM_FREE`。那次写入没有落到文件里，翻页丢帧问题仍未修。
 
 **验证**：改动只有一行宏定义；两个日志文件（16:11 关 / 16:22 开）是上表数据的来源。
+
+## 五十三、标题栏统一：首页与其余页面共用一套实现（2026-09-18）
+
+**问题**：各页面标题栏右侧的状态区并不一致。
+
+- 12 个页面（相册 / 图库 / 图像 AI / 对话 / 翻译 / 口语练习 / 设置 / 设置 WI-FI / WI-FI 密码 /
+  位置搜索等）都走 `common_create_topbar()`（`ai_album_ui_common.c`），右侧是音量 + 网络 +
+  时间三格、容器固定 `(720,0) 282×48`；
+- 首页是另一套手写实现（`ai_album_home_page.c` 的 `home_create_topbar()`）：底色 0x152327
+  （共享的是 0x152A2E）、坐标不同，而且是**唯一**带电池条与充电⚡的页面；
+- 首页那份状态还绕了一圈：`ai_album_home_runtime.c` 先把音量 / 网络 / 时间拼成一条字符串，
+  再由 `home_set_topbar_status()` 按第一个空格切开（`:315`），而这三项在共享栏里本来就各自
+  独立取数；
+- 结果是电池 / 充电只有回首页才看得见，两套实现还会各自漂移。
+
+**处置（方案 A：统一到共享实现）**
+
+- `ai_album_ui_common.c` 新增公开的 `ai_album_ui_common_attach_topbar(screen, title)`：
+  `prepare()` = 建屏 + attach，首页直接 attach 到它复用的 display 默认屏，不动首页的屏生命周期。
+- 共享状态区仍是 `(720,0) 282×48`、右缘 1002（22 px 边距），四项右对齐：音量 `w62 @0`、
+  网络 `w74 @70`、时间 `w46 @152`、⚡ `w14 @206`、电量条 `56×16 @226`。
+- 电量条按手机式显示：**轨道长度固定 = 满电宽度**，真实电量只体现为内部填充，数值不上屏；
+  ⚡ 在轨道左侧，仅外部供电（VBUS）时出现；轨道 0x2F4A44、充电中填充 0x27B58B、否则白色。
+  只在值真的变化时才写（`lv_bar_get_value`、指示条颜色与隐藏标志读回比较），
+  避免 1 s 定时器把标题栏整块标脏。
+- 电量显示值的迟滞 / 爬升状态机从 `ai_album_home_runtime.c` 搬到 `hardware/battery_detect.c` 的
+  `battery_detect_display_percent()`（不新增文件、不用改 cdkproj）；ADC 轮询频率不变——本来就是
+  每秒一次、与当前页面无关。
+- 首页删掉自绘标题栏与字符串切分；`ai_album_ui_model.h` 里随之失效的 `status` / `battery` /
+  `battery_percent` / `battery_external_power` 字段删除。
+- 顺带修一个真问题：首页挂的是 display 默认屏，建栏时它已经是活动屏，不会再收到
+  `SCREEN_LOADED`，不主动认领的话 1 s 刷新永远找不到刷新目标（原来首页有自己的一秒刷新，
+  把这个坑掩盖了）。现在 `attach_topbar()` 会检查并认领活动屏。
+
+**改动文件**：`ai_album_ui_common.c/.h`、`ai_album_home_page.c`、`ai_album_home_runtime.c`、
+`ai_album_ui_model.h`、`hardware/battery_detect.c/.h`。
+
+**验证**：四个 `.c` 用 `csky-elfabiv2-gcc -fsyntax-only -mcpu=e804df`（配 cdkproj 的 include
+目录）全部 0 错 0 警告；`home_create_topbar` / `update_battery` / `model->status` 等旧符号已无任何
+引用；括号配平，最大文件 393 行。上板效果待用户编译烧录确认（重点看右缘对齐与插拔电源时的
+⚡ / 颜色切换）。
+
+**已知未处理**：`ui/pages/ai_album_placeholder_page.c` 已无调用者（仍参与编译），也没有标题栏。

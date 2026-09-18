@@ -1,25 +1,20 @@
 #include "ui/ai_album_home_runtime.h"
 
 #include "basic_include.h"
-#include "hardware/battery_detect.h"
-#include "hardware/power_ctrl.h"
 #include "network/ai_album_weather_service.h"
-#include "network/wifi_provision.h"
 #include "system/ai_album_lunar.h"
 #include "system/ai_album_time_service.h"
 #include "ui/ai_album_i18n.h"
 #include "ui/ai_album_language.h"
-#include "ui/ai_album_ui_common.h"
 #include "ui/pages/ai_album_home_page.h"
 
 /*
- * home数据源:时钟(RTC+SNTP)、天气、农历、电量/充电已接真实服务;
- * 音量仍为占位(音频链路未接)。
+ * home数据源:时钟(RTC+SNTP)、天气、农历。电量/充电与音量/网络/时间
+ * 已归共享标题栏(ai_album_ui_common.c)各自取服务,不再进本model。
  */
 
 typedef struct {
     ai_album_home_model_t model;
-    char status[48];
     char greeting[24];
     char time[8];
     char date[48];
@@ -29,11 +24,7 @@ typedef struct {
     char temperature[16];
     char weather_details[80];
     char forecast[4][24];
-    char battery[24];
     uint8 time_valid;
-    uint8 battery_display_valid;
-    uint8 battery_display;
-    uint8 battery_creep;
     lv_timer_t *timer;
 } ai_album_home_runtime_t;
 
@@ -149,63 +140,8 @@ static void update_forecast(const ai_album_weather_snapshot_t *snapshot)
     }
 }
 
-/* 电量显示值为全方向限速的慢变跟踪:任何情况都不允许跳变。
- * 上行:外部供电1%/20s(充电渐进),电池供电1%/10s(轻载电压恢复)
- * 下行:1%/5s(拔掉充电器后端电压从抬高值缓慢回落)
- * 偏差>=25%直接校正(首读/换电池/长期挂起后的大误差) */
-#define BATTERY_STEP_UP_EXTERNAL 20u
-#define BATTERY_STEP_UP_BATTERY  10u
-#define BATTERY_STEP_DOWN        5u
-#define BATTERY_SNAP_DELTA       25u
-
-static void update_battery(void)
-{
-    uint8 external = power_ctrl_charging();
-    uint8 live = battery_detect_percent();
-    uint8 display;
-    uint8 rate;
-
-    if (!g_home_runtime.battery_display_valid) {
-        g_home_runtime.battery_display_valid = 1U;
-        g_home_runtime.battery_display = live;
-    }
-    display = g_home_runtime.battery_display;
-
-    if (live > display) {
-        if ((uint16)live - display >= BATTERY_SNAP_DELTA) {
-            display = live;
-            g_home_runtime.battery_creep = 0U;
-        } else {
-            rate = external ? BATTERY_STEP_UP_EXTERNAL
-                            : BATTERY_STEP_UP_BATTERY;
-            if (++g_home_runtime.battery_creep >= rate) {
-                g_home_runtime.battery_creep = 0U;
-                display++;
-            }
-        }
-    } else if (live < display) {
-        if (display - live >= BATTERY_SNAP_DELTA) {
-            display = live;
-            g_home_runtime.battery_creep = 0U;
-        } else if (++g_home_runtime.battery_creep >= BATTERY_STEP_DOWN) {
-            g_home_runtime.battery_creep = 0U;
-            display--;
-        }
-    } else {
-        g_home_runtime.battery_creep = 0U;
-    }
-    g_home_runtime.battery_display = display;
-
-    g_home_runtime.model.battery_percent = display;
-    g_home_runtime.model.battery_external_power = external;
-    /* 字符串仅供串口调试,不再上屏 */
-    os_snprintf(g_home_runtime.battery, sizeof(g_home_runtime.battery),
-                "%s %u%%", external ? "EXT" : "BAT", (unsigned)display);
-}
-
 static void home_runtime_refresh(void)
 {
-    wifi_provision_status_t wifi;
     ai_album_weather_snapshot_t weather;
     ai_album_weather_location_t wx_location;
 
@@ -234,19 +170,6 @@ static void home_runtime_refresh(void)
     }
     update_greeting(g_home_runtime.time_valid);
 
-    wifi_provision_get_status(&wifi);
-    {
-        char volume[20];
-
-        ai_album_ui_common_format_volume(volume, sizeof(volume));
-        os_snprintf(g_home_runtime.status, sizeof(g_home_runtime.status),
-                    "%s   %s   %s", volume,
-                    wifi.state == WIFI_PROVISION_STATE_ONLINE
-                        ? ai_album_i18n_text("ONLINE")
-                        : ai_album_i18n_text("OFFLINE"),
-                    g_home_runtime.time);
-    }
-
     /* 天气:服务为自驱动任务(init一次,15分钟周期刷新),这里只取快照 */
     ai_album_weather_service_init();
     ai_album_weather_service_get_current_location(&wx_location);
@@ -256,8 +179,6 @@ static void home_runtime_refresh(void)
     ai_album_weather_service_get_snapshot(&weather);
     update_weather(&weather, g_home_runtime.location);
     update_forecast(&weather);
-
-    update_battery();
 
     ai_album_home_page_update(&g_home_runtime.model);
 }
@@ -271,7 +192,6 @@ static void home_runtime_timer_cb(lv_timer_t *timer)
 const ai_album_home_model_t *ai_album_home_runtime_prepare(void)
 {
     memset(&g_home_runtime, 0, sizeof(g_home_runtime));
-    g_home_runtime.model.status        = g_home_runtime.status;
     g_home_runtime.model.greeting      = g_home_runtime.greeting;
     g_home_runtime.model.time          = g_home_runtime.time;
     g_home_runtime.model.date          = g_home_runtime.date;
@@ -283,7 +203,6 @@ const ai_album_home_model_t *ai_album_home_runtime_prepare(void)
     for (uint8 i = 0U; i < 4U; ++i) {
         g_home_runtime.model.forecast[i] = g_home_runtime.forecast[i];
     }
-    g_home_runtime.model.battery       = g_home_runtime.battery;
     home_runtime_refresh();
     return &g_home_runtime.model;
 }

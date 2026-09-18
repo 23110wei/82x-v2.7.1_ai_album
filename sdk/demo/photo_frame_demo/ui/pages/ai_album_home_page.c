@@ -2,6 +2,7 @@
 
 #include "basic_include.h"
 #include "ui/ai_album_i18n.h"
+#include "ui/ai_album_ui_common.h"
 
 #define AI_ALBUM_HOME_MENU_COUNT 5U
 
@@ -12,10 +13,6 @@ typedef struct {
     lv_obj_t *menu;
     lv_obj_t *menu_hint;
     lv_obj_t *menu_buttons[AI_ALBUM_HOME_MENU_COUNT];
-    lv_obj_t *volume_icon_label;
-    lv_obj_t *battery_bar;
-    lv_obj_t *battery_bolt_label;
-    lv_obj_t *status_label;
     lv_obj_t *greeting_label;
     lv_obj_t *time_label;
     lv_obj_t *date_label;
@@ -71,50 +68,6 @@ static void home_style_box(lv_obj_t *obj, uint32_t color, lv_opa_t opacity,
     lv_obj_set_style_radius(obj, radius, LV_PART_MAIN);
     lv_obj_set_style_border_width(obj, 0, LV_PART_MAIN);
     lv_obj_set_style_pad_all(obj, 0, LV_PART_MAIN);
-}
-
-static void home_create_topbar(void)
-{
-    lv_obj_t *bar = home_plain_object(g_home.screen);
-    lv_obj_t *label;
-
-    lv_obj_set_pos(bar, 0, 0);
-    lv_obj_set_size(bar, 1024, 48);
-    home_style_box(bar, 0x152327U, LV_OPA_COVER, 0);
-
-    label = home_raw_label(
-        bar, "AI FRAME", &lv_font_montserrat_14, 0xEDF4F1U);
-    lv_obj_align(label, LV_ALIGN_LEFT_MID, 22, 0);
-    label = home_label(bar, "WEATHER HOME", &lv_font_montserrat_16, 0xFFFFFFU);
-    lv_obj_align(label, LV_ALIGN_CENTER, 0, 0);
-    g_home.volume_icon_label = home_raw_label(
-        bar, "", &lv_font_montserrat_14, 0x8DE4C8U);
-    lv_obj_set_width(g_home.volume_icon_label, 20);
-    lv_obj_set_style_text_align(g_home.volume_icon_label,
-                                LV_TEXT_ALIGN_RIGHT, LV_PART_MAIN);
-    lv_obj_align(g_home.volume_icon_label, LV_ALIGN_RIGHT_MID, -230, 0);
-    /* 电池:进度条+外部供电⚡。PA10只能测VBUS在位(TP4056的CHRG脚
-     * 未接SoC),"真在充电/已充满"无法区分——⚡=接着外部电源,进度条
-     * 缓慢上爬即充电中。电量数值不上屏(显示值经慢变限速) */
-    g_home.battery_bolt_label = home_raw_label(
-        bar, LV_SYMBOL_CHARGE, &lv_font_montserrat_14, 0x27B58BU);
-    lv_obj_align(g_home.battery_bolt_label, LV_ALIGN_RIGHT_MID, -254, 0);
-    g_home.battery_bar = lv_bar_create(bar);
-    lv_obj_set_size(g_home.battery_bar, 56, 16);
-    lv_obj_align(g_home.battery_bar, LV_ALIGN_RIGHT_MID, -274, 0);
-    lv_bar_set_range(g_home.battery_bar, 0, 100);
-    lv_obj_set_style_bg_color(g_home.battery_bar, lv_color_hex(0x2F4A44U),
-                              LV_PART_MAIN);
-    lv_obj_set_style_bg_opa(g_home.battery_bar, LV_OPA_COVER, LV_PART_MAIN);
-    lv_obj_set_style_radius(g_home.battery_bar, 4, LV_PART_MAIN);
-    lv_obj_set_style_radius(g_home.battery_bar, 4, LV_PART_INDICATOR);
-    lv_obj_add_flag(g_home.battery_bolt_label, LV_OBJ_FLAG_HIDDEN);
-    g_home.status_label =
-        home_label(bar, "", &lv_font_montserrat_14, 0x8DE4C8U);
-    lv_obj_set_width(g_home.status_label, 200);
-    lv_obj_set_style_text_align(g_home.status_label,
-                                LV_TEXT_ALIGN_LEFT, LV_PART_MAIN);
-    lv_obj_align(g_home.status_label, LV_ALIGN_RIGHT_MID, -22, 0);
 }
 
 static void home_create_clock_block(lv_obj_t *home)
@@ -305,42 +258,10 @@ static uint8_t home_set_raw_label(lv_obj_t *label, const char *text)
     return 1U;
 }
 
-static void home_set_topbar_status(const char *status)
-{
-    char icon[8];
-    const char *details;
-    size_t icon_length;
-
-    if (status == NULL) return;
-    details = strchr(status, ' ');
-    icon_length = details == NULL ? strlen(status) : (size_t)(details - status);
-    if (icon_length >= sizeof(icon)) {
-        icon_length = 0U;
-        details = status;
-    }
-    memcpy(icon, status, icon_length);
-    icon[icon_length] = '\0';
-    while (details != NULL && *details == ' ') ++details;
-    home_set_raw_label(g_home.volume_icon_label, icon);
-    home_set_label(g_home.status_label, details == NULL ? "" : details);
-}
-
 static void home_render(const ai_album_home_model_t *model)
 {
     uint32_t i;
 
-    home_set_topbar_status(model->status);
-    lv_bar_set_value(g_home.battery_bar, model->battery_percent,
-                     LV_ANIM_OFF);
-    lv_obj_set_style_bg_color(
-        g_home.battery_bar,
-        lv_color_hex(model->battery_external_power ? 0x27B58BU : 0xFFFFFFU),
-        LV_PART_INDICATOR);
-    if (model->battery_external_power) {
-        lv_obj_clear_flag(g_home.battery_bolt_label, LV_OBJ_FLAG_HIDDEN);
-    } else {
-        lv_obj_add_flag(g_home.battery_bolt_label, LV_OBJ_FLAG_HIDDEN);
-    }
     home_set_label(g_home.greeting_label, model->greeting);
     home_set_raw_label(g_home.time_label, model->time);
     home_set_label(g_home.date_label, model->date);
@@ -381,7 +302,7 @@ int ai_album_home_page_create(lv_display_t *display,
     lv_obj_set_style_bg_color(home, lv_color_hex(0xD9E9E5U), LV_PART_MAIN);
     lv_obj_set_style_bg_opa(home, LV_OPA_COVER, LV_PART_MAIN);
 
-    home_create_topbar();
+    ai_album_ui_common_attach_topbar(g_home.screen, "WEATHER HOME");
     home_create_clock_block(home);
     home_create_weather_card(home);
     home_create_forecast(home);

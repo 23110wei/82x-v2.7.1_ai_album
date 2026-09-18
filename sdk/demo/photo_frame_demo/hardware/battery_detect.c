@@ -126,3 +126,54 @@ uint8_t battery_detect_percent(void)
     }
     return (uint8_t)g_percent_ema;
 }
+
+/* 显示值全方向限速的慢变跟踪:任何情况都不允许跳变。
+ * 上行:外部供电1%/20s(充电渐进),电池供电1%/10s(轻载电压恢复)
+ * 下行:1%/5s(拔掉充电器后端电压从抬高值缓慢回落)
+ * 偏差>=25%直接校正(首读/换电池/长期挂起后的大误差) */
+#define BATTERY_DISPLAY_STEP_UP_EXTERNAL 20u
+#define BATTERY_DISPLAY_STEP_UP_BATTERY  10u
+#define BATTERY_DISPLAY_STEP_DOWN         5u
+#define BATTERY_DISPLAY_SNAP_DELTA       25u
+
+static uint8_t g_display_valid;
+static uint8_t g_display_percent;
+static uint8_t g_display_creep;
+
+uint8_t battery_detect_display_percent(uint8_t external_power)
+{
+    uint8_t live = battery_detect_percent();
+    uint8_t rate;
+    uint8_t delta;
+
+    if (!g_display_valid) {
+        g_display_valid = 1u;
+        g_display_percent = live;
+    }
+    if (live > g_display_percent) {
+        delta = (uint8_t)(live - g_display_percent);
+        if (delta >= BATTERY_DISPLAY_SNAP_DELTA) {
+            g_display_percent = live;
+            g_display_creep = 0u;
+        } else {
+            rate = external_power ? BATTERY_DISPLAY_STEP_UP_EXTERNAL
+                                  : BATTERY_DISPLAY_STEP_UP_BATTERY;
+            if (++g_display_creep >= rate) {
+                g_display_creep = 0u;
+                ++g_display_percent;
+            }
+        }
+    } else if (live < g_display_percent) {
+        delta = (uint8_t)(g_display_percent - live);
+        if (delta >= BATTERY_DISPLAY_SNAP_DELTA) {
+            g_display_percent = live;
+            g_display_creep = 0u;
+        } else if (++g_display_creep >= BATTERY_DISPLAY_STEP_DOWN) {
+            g_display_creep = 0u;
+            --g_display_percent;
+        }
+    } else {
+        g_display_creep = 0u;
+    }
+    return g_display_percent;
+}
