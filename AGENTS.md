@@ -112,7 +112,8 @@ Relevant SDK building blocks: `sdk/demo/ai_demo/coze_demo/ai_dialogue` (voice AI
 
 - Baseline commit `eb4d29c` (2026-09-18) tracks the whole tree, prebuilt `libs/*.a` included.
   CDK build output, generated `.bin/.elf/.map` and `debug/` board logs are ignored — see `.gitignore`.
-  Remote `origin` = `git@github.com:23110wei/82x-v2.7.1_ai_album.git` (SSH).
+  Remote `origin` = `https://github.com/23110wei/82x-v2.7.1_ai_album.git` (HTTPS via Windows Credential
+  Manager; the local `~/.ssh/id_ed25519` is not registered on GitHub yet).
 - `.gitattributes` sets `* -text` because the tree deliberately mixes CRLF (C sources) and LF
   (`BuildBIN.sh`, `precompile.sh`, ...); files must stay byte-exact, so do not add EOL conversion.
 - Commit each unit of work separately and append a numbered section to `WORKLOG.md`.

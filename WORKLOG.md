@@ -1034,4 +1034,4 @@ VBUS 检测通道初始化失败时按场景1兜底（`g_vbus_adc_failed`，fail
 - 不纳入：CDK 产物（`Obj/`、`Lst/`、`.cache/`、`.cdk/`、`__workspace_pack__/`）、`project/*/*.bin|elf|map`、工具索引缓存（`.codegraph/`、`.zcode/`）。
 - `.git` 属主是沙箱账户，已把本仓库加入 `safe.directory`，普通命令行下 `git` 可直接使用。
 
-**待办**：尚未配置远端仓库（`git remote` 为空），需要异地备份时再补。
+**远端**：`origin` = `https://github.com/23110wei/82x-v2.7.1_ai_album.git`（HTTPS + Windows 凭据管理器；`~/.ssh/id_ed25519` 尚未登记到 GitHub）。本地 `main` 已与 `origin/main` 对齐（`2c4a4de`）。
