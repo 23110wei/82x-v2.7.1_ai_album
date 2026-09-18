@@ -2,7 +2,7 @@
 
 Vendor SDK (TXsemi/HugeIC) for the TXW82x dual-CPU C-SKY SoC, currently used as the base for the
 **AI 数码相框 (AI digital photo frame)** project — see `doc/` and the "AI photo frame project" section below.
-Not a git repo — no history to consult. C only, UTF-8 (CRLF), Chinese comments throughout.
+Under git since 2026-09-18 — see "Version control" below. C only, UTF-8 (CRLF), Chinese comments throughout.
 Toolchain: `csky-elfabiv2-gcc` (minilibc).
 
 ## Layout
@@ -107,6 +107,15 @@ UI architecture (ported from sibling `D:\work\Dual_Screen_Cmake\TXW82x_FPV\appli
 - Excluded: `ui/pages/ai_album_ball_test_page.c` (needs 9.5 layer/triangle draw API; its functions are stubbed) and the placeholder page (superseded by full router). Default UI language is English (embedded CJK font is a ~430-char subset; full fonts come with the SD bitmap-font system later).
 
 Relevant SDK building blocks: `sdk/demo/ai_demo/coze_demo/ai_dialogue` (voice AI dialogue + LVGL UI, base for AI 对话), `ai_alarm_clock` (clock-style product UI), `sdk/lib/net` (http/curl/mqtt/llm for AI + weather), `sdk/lib/audio_proc_lib` (AEC/ANS/VAD), `sdk/app/decode` (JPEG decode).
+
+## Version control
+
+- Baseline commit `eb4d29c` (2026-09-18) tracks the whole tree, prebuilt `libs/*.a` included.
+  CDK build output, generated `.bin/.elf/.map` and `debug/` board logs are ignored — see `.gitignore`.
+  Remote `origin` = `git@github.com:23110wei/82x-v2.7.1_ai_album.git` (SSH).
+- `.gitattributes` sets `* -text` because the tree deliberately mixes CRLF (C sources) and LF
+  (`BuildBIN.sh`, `precompile.sh`, ...); files must stay byte-exact, so do not add EOL conversion.
+- Commit each unit of work separately and append a numbered section to `WORKLOG.md`.
 
 ## Key entry points
 
