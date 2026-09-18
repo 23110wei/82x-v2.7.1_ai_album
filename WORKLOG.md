@@ -1022,3 +1022,16 @@ VBUS 检测通道初始化失败时按场景1兜底（`g_vbus_adc_failed`，fail
 
 **验证**：`osd_encode_msi.c` 通过 csky-elfabiv2-gcc 语法检查（无新增告警）；上板待用户编译烧录确认，
 预期日志中 `LR:0x1008592c` 的 malloc fail 显著减少或消失。
+
+## 五十一、工程纳入 Git 版本管理（2026-09-18）
+
+**背景**：此前只靠本文件记录改动，无法回退到任意历史状态。目录里已存在 `.git`（无任何提交）与上一轮写好但未生效的 `.gitignore` / `.gitattributes`。
+
+**处置**：
+- 建立基线提交 `eb4d29c` 作为还原点：4099 个文件、纳入版本控制约 231 MB，`git gc` 后 `.git` 约 147 MB。
+- `.gitignore` 补一条 `/debug/`：串口日志与调试抓取是每次上板重新生成的证据，不随代码进历史。
+- `.gitattributes` 用 `* -text` 保持混合行尾原样（C 源文件 CRLF、`BuildBIN.sh` 等脚本 LF），Git 不做任何 EOL 转换；`git ls-files --eol` 复核 0 处索引/工作区不一致。
+- 不纳入：CDK 产物（`Obj/`、`Lst/`、`.cache/`、`.cdk/`、`__workspace_pack__/`）、`project/*/*.bin|elf|map`、工具索引缓存（`.codegraph/`、`.zcode/`）。
+- `.git` 属主是沙箱账户，已把本仓库加入 `safe.directory`，普通命令行下 `git` 可直接使用。
+
+**待办**：尚未配置远端仓库（`git remote` 为空），需要异地备份时再补。
