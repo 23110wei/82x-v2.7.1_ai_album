@@ -1,0 +1,8 @@
+# Preserve file bytes exactly.
+#
+# The vendor SDK tree intentionally mixes CRLF (C sources) and LF
+# (BuildBIN.sh, precompile.sh, ...), and this machine has a system-level
+# core.autocrlf=true in "D:/Program Files/Git/etc/gitconfig". Without this
+# attribute git would rewrite the LF-only build scripts to CRLF on checkout
+# and break them. -text disables all EOL conversion.
+* -text

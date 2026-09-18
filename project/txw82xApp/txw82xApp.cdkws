@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<CDK_Workspace Name="txw82xApp" Database="LanguageSever" DoubleClick="Yes">
+  <DefaultPackPath>$(CDKWS)\__workspace_pack__</DefaultPackPath>
+  <Project Name="txw82xApp" Path="txw82xApp.cdkproj" RootPath="" Active="Yes"/>
+  <BuildMatrix>
+    <WorkspaceConfiguration Name="Debug" Selected="yes">
+      <Environment/>
+      <Project Name="txw82xApp" ConfigName="FLASH"/>
+    </WorkspaceConfiguration>
+  </BuildMatrix>
+</CDK_Workspace>

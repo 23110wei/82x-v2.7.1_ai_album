@@ -1,0 +1,3 @@
+codegraph init
+重新索引：codegraph index
+同步更新：codegraph sync

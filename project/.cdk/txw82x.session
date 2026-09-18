@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<Session Name="D:\work\Dual_Screen_Cmake\TXW82x_FPV-v2.7.1.7-45228\TXW82x_FPV-v2.7.1.7-45228\project\txw82x.cdkws">
+  <int Value="0" Name="m_selectedTab"/>
+  <wxString Value="D:\work\Dual_Screen_Cmake\TXW82x_FPV-v2.7.1.7-45228\TXW82x_FPV-v2.7.1.7-45228\project\txw82x.cdkws" Name="m_workspaceName"/>
+  <TabInfoArray Name="TabInfoArray"/>
+  <SerializedObject Name="m_breakpoints">
+    <long Value="0" Name="Count"/>
+  </SerializedObject>
+</Session>

@@ -1,0 +1,47 @@
+# ============================================================================
+# TXW82x FPV SDK v2.7.1.7 (build 45228) - AI digital photo frame project
+#
+# Tracked   : source, headers, build/project config, vendored SDK inputs,
+#             prebuilt closed libs (libs/*.a), docs, style reference images.
+# Untracked : everything the T-Head CDK build regenerates, plus runtime
+#             evidence captured from the board.
+# ============================================================================
+
+# --- Tooling / editor index caches (regenerable, very large) ---
+/.codegraph/
+/.zcode/
+
+# --- CDK build output ---
+/project/*/Obj/
+/project/*/Lst/
+/project/*/.cache/
+/project/*/.cdk/
+/project/txw82xApp/__workspace_pack__/
+
+# CDK auto-generates this from the matching .cdkproj ("Do not modify")
+/project/txw82xApp/txw82xApp.mk
+/project/txw82xCore/txw82xCore.mk
+
+# --- Build artifacts dropped next to the projects ---
+# Covers APP.bin, txw82xApp.bin, ai_album_<date>.bin, txw82xcore.bin,
+# param.bin, psram.bin, *.elf, *.map, *.hex ...
+/project/txw82xApp/*.bin
+/project/txw82xApp/*.elf
+/project/txw82xApp/*.map
+/project/txw82xApp/*.hex
+/project/txw82xApp/.pp_rsp.txt
+/project/txw82xCore/*.bin
+/project/txw82xCore/*.elf
+/project/txw82xCore/*.map
+/project/txw82xCore/*.hex
+
+# --- Generic compiler leftovers ---
+*.o
+*.d
+*.ihex
+*.su
+
+# --- Runtime evidence captured from the board ---
+# Serial logs and debug captures land here; they are regenerated per run and
+# must not churn the history.
+/debug/
